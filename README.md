@@ -174,3 +174,6 @@ docker rm insurance-app
 4. Click "Predict Premium" to get your estimated insurance cost
 5. View detailed risk factor analysis and recommendations
 # Technical Blog
+
+# Public Streamlit Application
+https://jenish-ds-portfolio-project-insurance-cost-prediction.streamlit.app/
