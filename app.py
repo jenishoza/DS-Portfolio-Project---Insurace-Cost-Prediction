@@ -1,0 +1,146 @@
+import streamlit as st
+from src.model_utils import load_model, load_preprocessing_model
+from src.preprocessing import process_input
+from src.custom_transformers import FeatureCreator, ImputerWrapper#, build_pipeline
+
+
+model = load_model()
+
+st.set_page_config(
+    page_title='Insurance Cost Prediction',
+    layout='wide',
+    initial_sidebar_state='expanded'
+)
+
+st.title('Insurace Cost Prediction')
+st.markdown('---')
+
+st.markdown("""
+### Welcome to the Insurance Premium Calculator!
+This application uses machine learning to estimate your insurance premium based on your personal health information.
+Please fill in the form below to get your estimated premium.
+""")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.header("Personal Information")
+    age = st.slider("Age", min_value=18, max_value=66, value=24, help="Your current age")
+    height = st.number_input("Height (cm)", min_value=100, max_value=250, value=163, help="Your height in centimeters")
+    weight = st.number_input("Weight (kg)", min_value=30, max_value=200, value=75, help="Your weight in kilograms")
+    surgeries = st.selectbox("Number of Major Surgeries", options=[0, 1, 2, 3, 4, 5], help="Number of major surgeries you've had")
+
+with col2:
+    st.header("Health Conditions")
+    diabetes = st.selectbox("Do you have Diabetes?", options=["No", "Yes"])
+    diabetes_val = 1 if diabetes == "Yes" else 0
+    bp_problems = st.selectbox("Do you have Blood Pressure Problems?", options=["No", "Yes"])
+    bp_val = 1 if bp_problems == "Yes" else 0
+    transplants = st.selectbox("Have you had Any Transplants?", options=["No", "Yes"])
+    transplants_val = 1 if transplants == "Yes" else 0
+    chronic_diseases = st.selectbox("Do you have Any Chronic Diseases?", options=["No", "Yes"])
+    chronic_val = 1 if chronic_diseases == "Yes" else 0
+    allergies = st.selectbox("Do you have Known Allergies?", options=["No", "Yes"])
+    allergies_val = 1 if allergies == "Yes" else 0
+    cancer_history = st.selectbox("History of Cancer in Family?", options=["No", "Yes"])
+    cancer_val = 1 if cancer_history == "Yes" else 0
+
+bmi = weight / ((height/100) ** 2)
+st.markdown("---")
+st.subheader("Calculated BMI")
+st.metric("Body Mass Index (BMI)", f"{bmi:.2f}")
+
+if bmi < 18.5:
+    bmi_category_text = "Underweight"
+    bmi_color = "blue"
+elif 18.5 <= bmi < 25:
+    bmi_category_text = "Normal weight"
+    bmi_color = "green"
+elif 25 <= bmi < 30:
+    bmi_category_text = "Overweight"
+    bmi_color = "orange"
+else:
+    bmi_category_text = "Obese"
+    bmi_color = "red"
+
+st.markdown(f"**Category:** :{bmi_color}[{bmi_category_text}]")
+
+st.markdown("---")
+if st.button("Calculate Premium", type="primary", use_container_width=True):
+    processed_df = process_input(
+        age, height, weight, diabetes_val, bp_val, transplants_val, chronic_val,
+        allergies_val, cancer_val, surgeries
+    )
+    processed_df = load_preprocessing_model().transform(processed_df)
+    prediction = model.predict(processed_df[model.feature_names_in_])[0]
+
+    st.success("Premium Calculated Successfully!")
+    
+    result_col1, result_col2, result_col3 = st.columns(3)
+    with result_col1:
+        st.metric("Estimated Annual Premium", f"${prediction:,.2f}")
+    with result_col2:
+        st.metric("Monthly Premium", f"${prediction / 12:,.2f}")
+    with result_col3:
+        st.metric("Daily Premium", f"${prediction / 365:.2f}")
+
+    st.markdown("---")
+    st.subheader("Risk Assessment")
+
+    risk_factors = []
+    if diabetes_val: risk_factors.append("Diabetes")
+    if bp_val: risk_factors.append("Blood Pressure Problems")
+    if transplants_val: risk_factors.append("Previous Transplants")
+    if chronic_val: risk_factors.append("Chronic Diseases")
+    if allergies_val: risk_factors.append("Known Allergies")
+    if cancer_val: risk_factors.append("Family History of Cancer")
+    if surgeries > 0: risk_factors.append(f"{surgeries} Major Surgeries")
+    if bmi >= 30: risk_factors.append("Obesity (BMI ≥ 30)")
+    elif bmi >= 25: risk_factors.append("Overweight (BMI ≥ 25)")
+
+    if risk_factors:
+        st.warning("**Risk Factors Identified:**")
+        for factor in risk_factors:
+            st.write(f"• {factor}")
+    else:
+        st.success("**No major risk factors identified!**")
+
+    st.markdown("---")
+    st.subheader("Recommendations")
+
+    recommendations = []
+    if bmi >= 30:
+        recommendations.append("Consider weight management programs to reduce BMI")
+    elif bmi >= 25:
+        recommendations.append("Maintain a healthy diet and regular exercise")
+    if diabetes_val:
+        recommendations.append("Regular monitoring of blood sugar levels")
+    if bp_val:
+        recommendations.append("Regular blood pressure monitoring and medication compliance")
+    if not recommendations:
+        recommendations.append("Maintain your current healthy lifestyle")
+        recommendations.append("Regular health check-ups are recommended")
+
+    for rec in recommendations:
+        st.info(f"💡 {rec}")
+
+st.sidebar.header("About This Calculator")
+st.sidebar.info("""
+This insurance premium calculator uses machine learning to estimate your insurance costs based on various health and personal factors.
+
+**Factors Considered:**
+- Age
+- Height & Weight (BMI)
+- Diabetes
+- Blood Pressure Problems
+- Transplant History
+- Chronic Diseases
+- Known Allergies
+- Family Cancer History
+- Number of Major Surgeries
+
+**Note:** This is an estimate only. Actual premiums may vary based on additional factors and insurance company policies.
+""")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("**Developed using Streamlit**")
